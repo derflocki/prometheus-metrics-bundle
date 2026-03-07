@@ -13,6 +13,8 @@ use Artprima\PrometheusMetricsBundle\Metrics\MetricsCollectorRegistry;
 use Artprima\PrometheusMetricsBundle\Metrics\PreExceptionMetricsCollectorInterface;
 use Artprima\PrometheusMetricsBundle\Metrics\RequestMetricsCollectorInterface;
 use Artprima\PrometheusMetricsBundle\Metrics\ResponseMetricsCollectorInterface;
+use DG\BypassFinals;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
@@ -27,9 +29,15 @@ use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Tests\Artprima\PrometheusMetricsBundle\Fixtures\App\FunctionNameCollectorInterface;
 
 class MetricsCollectorListenerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        BypassFinals::enable();
+    }
+
     public function testOnKernelRequest(): void
     {
         $request = new Request([], [], ['_route' => 'test_route'], [], [], ['REQUEST_METHOD' => 'GET']);
@@ -295,5 +303,45 @@ class MetricsCollectorListenerTest extends TestCase
 
         $listener = new MetricsCollectorListener($registry);
         $listener->onConsoleError($evt);
+    }
+
+    #[DataProvider('getListenerFunctions')]
+    public function testMetricsCollectorListenerOnlyExecutesTypedCollector($eventClass, $funcName)
+    {
+        $collector = $this->createMock(FunctionNameCollectorInterface::class);
+        $collector->expects(self::never())->method('collectStart');
+        $collector->expects(self::never())->method('collectRequest');
+        $collector->expects(self::never())->method('collectPreException');
+        $collector->expects(self::never())->method('collectException');
+        $collector->expects(self::never())->method('collectResponse');
+        $collector->expects(self::never())->method('collectConsoleCommand');
+        $collector->expects(self::never())->method('collectConsoleTerminate');
+        $collector->expects(self::never())->method('collectConsoleError');
+
+        $registry = new MetricsCollectorRegistry();
+        $registry->registerMetricsCollector($collector);
+
+        $listener = new MetricsCollectorListener($registry);
+        $event = $this->createMock($eventClass);
+        if ($event instanceof RequestEvent || $event instanceof ResponseEvent) {
+            $request = new Request([], [], ['_route' => 'test_route'], [], [], ['REQUEST_METHOD' => 'GET']);
+            $event->method('getRequest')->willReturn($request);
+            $event->method('isMainRequest')->willReturn(true);
+        }
+        $listener->$funcName($event);
+    }
+
+    public static function getListenerFunctions(): iterable
+    {
+        return [
+            'onKernelRequestPre' => [RequestEvent::class, 'onKernelRequestPre'],
+            'onKernelRequest' => [RequestEvent::class, 'onKernelRequest'],
+            'onKernelExceptionPre' => [ExceptionEvent::class, 'onKernelExceptionPre'],
+            'onKernelException' => [ExceptionEvent::class, 'onKernelException'],
+            'onKernelResponse' => [ResponseEvent::class, 'onKernelResponse'],
+            'onConsoleCommand' => [ConsoleCommandEvent::class, 'onConsoleCommand'],
+            'onConsoleTerminate' => [ConsoleTerminateEvent::class, 'onConsoleTerminate'],
+            'onConsoleError' => [ConsoleErrorEvent::class, 'onConsoleError'],
+        ];
     }
 }
