@@ -8,7 +8,6 @@ use Artprima\PrometheusMetricsBundle\Metrics\ConsoleCommandMetricsCollectorInter
 use Artprima\PrometheusMetricsBundle\Metrics\ConsoleErrorMetricsCollectorInterface;
 use Artprima\PrometheusMetricsBundle\Metrics\ConsoleTerminateMetricsCollectorInterface;
 use Artprima\PrometheusMetricsBundle\Metrics\ExceptionMetricsCollectorInterface;
-use Artprima\PrometheusMetricsBundle\Metrics\MetricsCollectorInterface;
 use Artprima\PrometheusMetricsBundle\Metrics\MetricsCollectorRegistry;
 use Artprima\PrometheusMetricsBundle\Metrics\PreExceptionMetricsCollectorInterface;
 use Artprima\PrometheusMetricsBundle\Metrics\PreRequestMetricsCollectorInterface;
@@ -41,7 +40,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
         }
 
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectStart', PreRequestMetricsCollectorInterface::class)) {
+            if (!$collector instanceof PreRequestMetricsCollectorInterface) {
                 continue;
             }
 
@@ -70,7 +69,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
         }
 
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectRequest', RequestMetricsCollectorInterface::class)) {
+            if (!$collector instanceof RequestMetricsCollectorInterface) {
                 continue;
             }
 
@@ -95,7 +94,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
         }
 
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectPreException', PreExceptionMetricsCollectorInterface::class)) {
+            if (!$collector instanceof PreExceptionMetricsCollectorInterface) {
                 continue;
             }
 
@@ -120,7 +119,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
         }
 
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectException', ExceptionMetricsCollectorInterface::class)) {
+            if (!$collector instanceof ExceptionMetricsCollectorInterface) {
                 continue;
             }
 
@@ -149,7 +148,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
         }
 
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectResponse', ResponseMetricsCollectorInterface::class)) {
+            if (!$collector instanceof ResponseMetricsCollectorInterface) {
                 continue;
             }
 
@@ -169,7 +168,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
     public function onConsoleCommand(ConsoleCommandEvent $event): void
     {
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectConsoleCommand', ConsoleCommandMetricsCollectorInterface::class)) {
+            if (!$collector instanceof ConsoleCommandMetricsCollectorInterface) {
                 continue;
             }
 
@@ -189,7 +188,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
     public function onConsoleTerminate(ConsoleTerminateEvent $event): void
     {
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectConsoleTerminate', ConsoleTerminateMetricsCollectorInterface::class)) {
+            if (!$collector instanceof ConsoleTerminateMetricsCollectorInterface) {
                 continue;
             }
 
@@ -209,7 +208,7 @@ class MetricsCollectorListener implements LoggerAwareInterface
     public function onConsoleError(ConsoleErrorEvent $event): void
     {
         foreach ($this->metricsCollectors->getMetricsCollectors() as $collector) {
-            if (!self::isSupportedEvent($collector, 'collectConsoleError', ConsoleErrorMetricsCollectorInterface::class)) {
+            if (!$collector instanceof ConsoleErrorMetricsCollectorInterface) {
                 continue;
             }
 
@@ -224,27 +223,5 @@ class MetricsCollectorListener implements LoggerAwareInterface
                 }
             }
         }
-    }
-
-    private static function isSupportedEvent(MetricsCollectorInterface $collector, string $method, string $interface): bool
-    {
-        if (is_subclass_of($collector, $interface)) {
-            // supported
-            return true;
-        }
-
-        if (!is_callable([$collector, $method])) {
-            // not supported
-            return false;
-        }
-
-        @trigger_error(sprintf(
-            'Metrics Collector has a public method %s but doesn\'t implement %s.',
-            $method,
-            $interface
-        ), E_USER_DEPRECATED);
-
-        // supported, but deprecated
-        return true;
     }
 }
